@@ -1,0 +1,5 @@
+{
+  "name": "Examify",
+  "description": "An AI-powered web application to streamline the exam creation process for educators. Upload course materials, specify parameters, and automatically generate various question types. Preview, edit, and export exams to DOCX.",
+  "requestFramePermissions": []
+}
