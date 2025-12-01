@@ -1,4 +1,5 @@
 
+
 export enum QuestionType {
   MCQ = 'MCQ',
   TRUE_FALSE = 'TRUE_FALSE',
@@ -106,6 +107,7 @@ export interface Institution {
   staffName?: string;
   phone?: string;
   location?: string;
+  handbookGenerationEnabled?: boolean;
 }
 
 // --- New Platform-level Types ---
@@ -116,4 +118,18 @@ export interface Announcement {
     content: string;
     createdAt: string; // ISO date string
     institutionIds?: string[]; // Target specific institutions. If undefined, it's global.
+}
+
+// --- Handbook Generation Types ---
+export interface ChapterDetails {
+    id: number;
+    name: string;
+    pages: number;
+    subChapters: string; // Comma-separated or newline-separated string
+}
+
+export interface CourseOutline {
+    courseTitle: string;
+    totalPages: number;
+    chapters: ChapterDetails[];
 }

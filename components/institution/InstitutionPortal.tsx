@@ -1,11 +1,16 @@
+
 import React, { useState } from 'react';
-import { Exam, ExamParameters, Institution, User, Announcement } from '../../types';
+import { Exam, ExamParameters, Institution, User, Announcement, CourseOutline } from '../../types';
 import ExamSetup from '../ExamSetup';
 import { ExamPreview } from '../ExamPreview';
 import { generateExam } from '../../services/geminiService';
+import { generateHandbook } from '../../services/handbookService';
 import ExamBank from './ExamBank';
 import UserManagement from './UserManagement';
 import InstitutionAnalytics from './InstitutionAnalytics';
+import ProfileSettings from '../superadmin/ProfileSettings';
+import HandbookSetup from './HandbookSetup';
+import HandbookPreview from './HandbookPreview';
 
 interface InstitutionPortalProps {
     currentUser: User;
@@ -17,7 +22,11 @@ interface InstitutionPortalProps {
     onDeleteUser: (userId: string) => void;
     onSaveExam: (exam: Exam) => void;
     onDeleteSavedExam: (examId: string) => void;
+    onUpdateCredentials: (userId: string, newUsername: string, newPassword_provided: string) => void;
 }
+
+type ActiveView = 'analytics' | 'exam_generator' | 'handbook_generator' | 'bank' | 'users' | 'profile';
+
 
 const InstitutionPortal: React.FC<InstitutionPortalProps> = ({ 
     currentUser,
@@ -28,14 +37,24 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
     onAddUser,
     onDeleteUser,
     onSaveExam,
-    onDeleteSavedExam
+    onDeleteSavedExam,
+    onUpdateCredentials
 }) => {
-  const [activeView, setActiveView] = useState<'analytics' | 'generator' | 'bank' | 'users'>('analytics');
-  const [currentExam, setCurrentExam] = useState<Exam | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  const [activeView, setActiveView] = useState<ActiveView>('analytics');
   
+  // Exam Generator State
+  const [currentExam, setCurrentExam] = useState<Exam | null>(null);
+  const [examIsLoading, setExamIsLoading] = useState<boolean>(false);
+  const [examError, setExamError] = useState<string | null>(null);
   const [generatorStep, setGeneratorStep] = useState<'setup' | 'preview'>('setup');
+
+  // Handbook Generator State
+  const [handbookContent, setHandbookContent] = useState<string | null>(null);
+  const [handbookIsLoading, setHandbookIsLoading] = useState<boolean>(false);
+  const [handbookError, setHandbookError] = useState<string | null>(null);
+  const [handbookStep, setHandbookStep] = useState<'setup' | 'preview'>('setup');
+  const [generationStatus, setGenerationStatus] = useState({ current: 0, total: 0 });
+
 
   const relevantAnnouncements = announcements.filter(anno => 
     !anno.institutionIds || // It's a global announcement
@@ -45,26 +64,27 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
 
   const latestAnnouncement = relevantAnnouncements.length > 0 ? relevantAnnouncements[0] : null;
 
+  // --- Exam Generation Handlers ---
   const handleGenerateExam = async (material: string, params: ExamParameters) => {
-    setIsLoading(true);
-    setError(null);
+    setExamIsLoading(true);
+    setExamError(null);
     setCurrentExam(null);
     try {
       const generatedExam = await generateExam(material, params, institution.id, currentUser.id, currentUser.username);
       setCurrentExam(generatedExam);
       setGeneratorStep('preview');
     } catch (e) {
-      setError(e instanceof Error ? `Error generating exam: ${e.message}` : 'An unknown error occurred.');
+      setExamError(e instanceof Error ? `Error generating exam: ${e.message}` : 'An unknown error occurred.');
       console.error(e);
     } finally {
-      setIsLoading(false);
+      setExamIsLoading(false);
     }
   };
 
-  const handleBackToSetup = () => {
+  const handleBackToExamSetup = () => {
     setGeneratorStep('setup');
     setCurrentExam(null);
-    setError(null);
+    setExamError(null);
   };
   
   const handleUpdateExam = (updatedExam: Exam) => {
@@ -73,30 +93,71 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
 
   const handleSaveAndExit = (exam: Exam) => {
     onSaveExam(exam);
-    handleBackToSetup();
+    handleBackToExamSetup();
     alert("Exam saved to bank!");
   };
 
   const handleLoadExamFromBank = (exam: Exam) => {
     setCurrentExam(exam);
     setGeneratorStep('preview');
-    setActiveView('generator');
+    setActiveView('exam_generator');
   };
 
+  // --- Handbook Generation Handlers ---
+  const handleGenerateHandbook = async (material: string, outline: CourseOutline) => {
+    setHandbookIsLoading(true);
+    setHandbookError(null);
+    setHandbookContent('');
+    setGenerationStatus({ current: 0, total: outline.chapters.length });
+    setHandbookStep('preview');
+
+    try {
+        await generateHandbook(
+            material,
+            outline,
+            (chunk) => setHandbookContent(prev => (prev || '') + chunk),
+            (current, total) => setGenerationStatus({ current, total })
+        );
+    } catch (e) {
+        setHandbookError(e instanceof Error ? `Error generating handbook: ${e.message}` : 'An unknown error occurred.');
+        console.error(e);
+    } finally {
+        setHandbookIsLoading(false);
+    }
+  };
+  
+  const handleBackToHandbookSetup = () => {
+      setHandbookStep('setup');
+      setHandbookContent(null);
+      setHandbookError(null);
+      setGenerationStatus({ current: 0, total: 0 });
+  }
+
+  // --- View Rendering ---
   const renderActiveView = () => {
     switch(activeView) {
       case 'analytics':
         return <InstitutionAnalytics exams={savedExams} users={usersInInstitution} />;
-      case 'generator':
+      case 'exam_generator':
         return generatorStep === 'setup' 
-          ? <ExamSetup onGenerate={handleGenerateExam} isLoading={isLoading} error={error} />
+          ? <ExamSetup onGenerate={handleGenerateExam} isLoading={examIsLoading} error={examError} />
           : currentExam && <ExamPreview 
                               exam={currentExam} 
                               institution={institution}
-                              onBack={handleBackToSetup} 
+                              onBack={handleBackToExamSetup} 
                               onUpdateExam={handleUpdateExam}
                               onSaveExam={handleSaveAndExit}
                            />;
+      case 'handbook_generator':
+          if (!institution.handbookGenerationEnabled) return null;
+          return handbookStep === 'setup'
+            ? <HandbookSetup onGenerate={handleGenerateHandbook} isLoading={handbookIsLoading} error={handbookError} />
+            : <HandbookPreview 
+                content={handbookContent || ''} 
+                onBack={handleBackToHandbookSetup}
+                generationStatus={generationStatus}
+                isLoading={handbookIsLoading}
+              />;
       case 'bank':
         return <ExamBank 
                  exams={savedExams} 
@@ -109,17 +170,22 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
                  onAddUser={onAddUser}
                  onDeleteUser={onDeleteUser}
                />;
+      case 'profile':
+        return <ProfileSettings user={currentUser} onUpdateCredentials={onUpdateCredentials} />;
       default:
         return null;
     }
   };
 
-  const TabButton: React.FC<{view: 'analytics' | 'generator' | 'bank' | 'users'; label: string}> = ({ view, label }) => (
+  const TabButton: React.FC<{view: ActiveView; label: string}> = ({ view, label }) => (
     <button
       onClick={() => {
         setActiveView(view);
-        if (view !== 'generator') {
-            handleBackToSetup(); // Reset generator when switching tabs away from it
+        if (view !== 'exam_generator') {
+            handleBackToExamSetup(); // Reset exam generator when switching away
+        }
+        if (view !== 'handbook_generator') {
+            handleBackToHandbookSetup(); // Reset handbook generator when switching away
         }
       }}
       className={`px-4 py-2 text-sm font-medium rounded-md transition-colors duration-200 ${activeView === view ? 'bg-amber-500 text-slate-900' : 'text-slate-300 hover:bg-slate-600'}`}
@@ -147,14 +213,16 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
                 {institution.logo && <div className="p-1 bg-white/10 rounded-md"><img src={institution.logo} alt="Logo" className="h-12 w-12 object-contain"/></div>}
                 <div>
                     <h2 className="text-xl font-bold text-amber-400">{institution.name}</h2>
-                    <p className="text-sm text-slate-400">Exam Generation Suite</p>
+                    <p className="text-sm text-slate-400">Generation Suite</p>
                 </div>
             </div>
-            <div className="flex space-x-2 p-1 bg-slate-700 rounded-lg">
+            <div className="flex flex-wrap justify-end space-x-2 p-1 bg-slate-700 rounded-lg">
                 <TabButton view="analytics" label="Analytics" />
-                <TabButton view="generator" label="Exam Generator" />
+                <TabButton view="exam_generator" label="Exam Generator" />
+                {institution.handbookGenerationEnabled && <TabButton view="handbook_generator" label="Handbook Generator" />}
                 <TabButton view="bank" label="Exam Bank" />
                 <TabButton view="users" label="User Management" />
+                <TabButton view="profile" label="Profile" />
             </div>
         </div>
 

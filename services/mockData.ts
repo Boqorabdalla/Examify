@@ -1,4 +1,5 @@
 
+
 import { User, Institution, UserRole, InstitutionStatus } from '../types';
 
 export const INITIAL_INSTITUTIONS: Institution[] = [
@@ -10,7 +11,8 @@ export const INITIAL_INSTITUTIONS: Institution[] = [
         type: 'University',
         staffName: 'Dr. Susan Hockfield',
         phone: '617-253-1000',
-        location: 'Cambridge, MA'
+        location: 'Cambridge, MA',
+        handbookGenerationEnabled: true,
     }
 ];
 

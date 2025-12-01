@@ -5,6 +5,7 @@ import EditInstitutionModal from './EditInstitutionModal';
 import Analytics from './Analytics';
 import Announcements from './Announcements';
 import ProfileSettings from './ProfileSettings';
+import UserManagementModal from './UserManagementModal';
 
 interface SuperAdminDashboardProps {
   currentUser: User;
@@ -12,15 +13,17 @@ interface SuperAdminDashboardProps {
   users: User[];
   announcements: Announcement[];
   onRegisterInstitution: (
-    name: string, 
-    initialUser: { username: string, password_provided: string },
-    details: { type: string, staffName: string, phone: string, location: string }
+    name: string,
+    username: string,
+    password_provided: string,
+    details: { type: string; staffName: string; phone: string; location: string; handbookEnabled: boolean; }
   ) => void;
   onUpdateInstitution: (id: string, data: Partial<Institution>) => void;
   onDeleteInstitution: (id: string) => void;
   onToggleStatus: (id: string) => void;
   onCreateAnnouncement: (title: string, content: string, institutionIds?: string[]) => void;
   onUpdateCredentials: (userId: string, newUsername: string, newPassword_provided: string) => void;
+  onSeedData: () => void;
 }
 
 const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ 
@@ -33,7 +36,8 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   onDeleteInstitution,
   onToggleStatus,
   onCreateAnnouncement,
-  onUpdateCredentials
+  onUpdateCredentials,
+  onSeedData
 }) => {
   // Form state
   const [newInstName, setNewInstName] = useState('');
@@ -41,22 +45,27 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
   const [newInstStaffName, setNewInstStaffName] = useState('');
   const [newInstPhone, setNewInstPhone] = useState('');
   const [newInstLocation, setNewInstLocation] = useState('');
+  const [newInstUsername, setNewInstUsername] = useState('');
+  const [newInstPassword, setNewInstPassword] = useState('');
+  const [newInstHandbookEnabled, setNewInstHandbookEnabled] = useState(false);
 
   const [message, setMessage] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingInstitution, setEditingInstitution] = useState<Institution | null>(null);
-  const [activeTab, setActiveTab] = useState('analytics'); // Default to analytics
+  const [activeTab, setActiveTab] = useState('institutions');
+  const [managingUsersFor, setManagingUsersFor] = useState<Institution | null>(null);
+
 
   const handleEditClick = (institution: Institution) => {
     setEditingInstitution(institution);
-    setIsModalOpen(true);
+    setIsEditModalOpen(true);
   };
 
   const handleModalSave = (updatedData: Partial<Institution>) => {
     if (editingInstitution) {
       onUpdateInstitution(editingInstitution.id, updatedData);
     }
-    setIsModalOpen(false);
+    setIsEditModalOpen(false);
     setEditingInstitution(null);
   };
 
@@ -68,26 +77,21 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newInstName.trim() || !newInstType.trim() || !newInstStaffName.trim() || !newInstPhone.trim() || !newInstLocation.trim()) {
-        setMessage('All institution fields are required.');
+    if (!newInstName.trim() || !newInstType.trim() || !newInstStaffName.trim() || !newInstPhone.trim() || !newInstLocation.trim() || !newInstUsername.trim() || !newInstPassword.trim()) {
+        setMessage('All fields, including username and password, are required.');
         return;
-    };
-    
-    const simpleName = newInstName.trim().toLowerCase().replace(/\s+/g, '_');
-    const initialUser = {
-        username: `teacher_${simpleName}`,
-        password_provided: 'password'
     };
     
     const details = {
         type: newInstType,
         staffName: newInstStaffName,
         phone: newInstPhone,
-        location: newInstLocation
+        location: newInstLocation,
+        handbookEnabled: newInstHandbookEnabled,
     };
 
-    onRegisterInstitution(newInstName, initialUser, details);
-    setMessage(`Institution "${newInstName}" created with user "${initialUser.username}" and password "password".`);
+    onRegisterInstitution(newInstName, newInstUsername, newInstPassword, details);
+    setMessage(`Institution "${newInstName}" created with user "${newInstUsername}".`);
     
     // Reset form
     setNewInstName('');
@@ -95,6 +99,10 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     setNewInstStaffName('');
     setNewInstPhone('');
     setNewInstLocation('');
+    setNewInstUsername('');
+    setNewInstPassword('');
+    setNewInstHandbookEnabled(false);
+
 
     setTimeout(() => setMessage(null), 5000);
   };
@@ -139,6 +147,21 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
         case 'institutions':
             return (
                  <div className="space-y-8">
+                    {institutions.length === 0 && (
+                        <div className="bg-slate-800 p-6 rounded-lg shadow-md border border-amber-500/30 mb-8 flex flex-col md:flex-row items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-bold text-amber-400">Get Started Quickly</h3>
+                                <p className="text-slate-400 text-sm mt-1">Your database is currently empty. Populate it with demo data (MIT, sample teachers) to test the features.</p>
+                            </div>
+                            <button 
+                                onClick={onSeedData}
+                                className="mt-4 md:mt-0 px-4 py-2 bg-amber-500/10 text-amber-400 border border-amber-500/50 hover:bg-amber-500 hover:text-slate-900 rounded-md font-medium transition-colors"
+                            >
+                                Populate Demo Data
+                            </button>
+                        </div>
+                    )}
+
                     <div className="bg-slate-800 p-6 rounded-lg shadow-md border border-slate-700">
                         <h3 className="text-xl font-semibold text-amber-400 mb-4">Register New Institution</h3>
                         <form onSubmit={handleSubmit} className="space-y-4">
@@ -159,9 +182,33 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                                 <label className="block text-sm font-medium text-slate-300">Phone Number</label>
                                 <input type="text" value={newInstPhone} onChange={(e) => setNewInstPhone(e.target.value)} className="mt-1 block w-full border border-slate-600 bg-slate-700 rounded-md shadow-sm py-2 px-3 text-amber-50 focus:ring-amber-500 focus:border-amber-500 sm:text-sm" />
                             </div>
-                             <div className="col-span-1 md:col-span-2">
+                             <div className="md:col-span-2">
                                 <label className="block text-sm font-medium text-slate-300">Location / City</label>
                                 <input type="text" value={newInstLocation} onChange={(e) => setNewInstLocation(e.target.value)} className="mt-1 block w-full border border-slate-600 bg-slate-700 rounded-md shadow-sm py-2 px-3 text-amber-50 focus:ring-amber-500 focus:border-amber-500 sm:text-sm" />
+                            </div>
+                             <div className="md:col-span-2 border-t border-slate-700 pt-4 mt-2">
+                                <p className="text-sm font-medium text-slate-400 mb-2">Initial Teacher Credentials</p>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300">Username</label>
+                                <input type="text" value={newInstUsername} onChange={(e) => setNewInstUsername(e.target.value)} className="mt-1 block w-full border border-slate-600 bg-slate-700 rounded-md shadow-sm py-2 px-3 text-amber-50 focus:ring-amber-500 focus:border-amber-500 sm:text-sm" />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-medium text-slate-300">Password</label>
+                                <input type="password" value={newInstPassword} onChange={(e) => setNewInstPassword(e.target.value)} className="mt-1 block w-full border border-slate-600 bg-slate-700 rounded-md shadow-sm py-2 px-3 text-amber-50 focus:ring-amber-500 focus:border-amber-500 sm:text-sm" />
+                            </div>
+                             <div className="md:col-span-2 border-t border-slate-700 pt-4 mt-2">
+                                <p className="text-sm font-medium text-slate-400 mb-2">Feature Access</p>
+                                <div className="flex items-center">
+                                    <input
+                                        id="handbook-enabled"
+                                        type="checkbox"
+                                        checked={newInstHandbookEnabled}
+                                        onChange={(e) => setNewInstHandbookEnabled(e.target.checked)}
+                                        className="h-4 w-4 text-amber-600 border-slate-500 rounded focus:ring-amber-500 bg-slate-700"
+                                    />
+                                    <label htmlFor="handbook-enabled" className="ml-2 text-sm text-slate-300">Enable Handbook Generation Feature</label>
+                                </div>
                             </div>
                         </div>
                         <div className="flex justify-end">
@@ -182,6 +229,7 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Location</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Status</th>
                                 <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Teachers</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-slate-300 uppercase tracking-wider">Features</th>
                                 <th className="px-6 py-3 text-right text-xs font-medium text-slate-300 uppercase tracking-wider">Actions</th>
                             </tr>
                             </thead>
@@ -195,7 +243,20 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
                                     {inst.status}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">{getInstitutionUserCount(inst.id)}</td>
+                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                                    <button onClick={() => setManagingUsersFor(inst)} className="hover:underline text-amber-400">
+                                       {getInstitutionUserCount(inst.id)}
+                                    </button>
+                                </td>
+                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300">
+                                    {inst.handbookGenerationEnabled && (
+                                        <span title="Handbook Generation Enabled" className="inline-block">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                                                <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 16c1.255 0 2.443-.29 3.5-.804V4.804zM14.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 0114.5 16c1.255 0 2.443-.29 3.5-.804v-10A7.968 7.968 0 0014.5 4z" />
+                                            </svg>
+                                        </span>
+                                    )}
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                                     <button onClick={() => onToggleStatus(inst.id)} className={`px-2 py-1 text-xs rounded ${inst.status === InstitutionStatus.ACTIVE ? 'bg-yellow-600 hover:bg-yellow-700 text-white' : 'bg-green-600 hover:bg-green-700 text-white'}`}>
                                         {inst.status === InstitutionStatus.ACTIVE ? 'Suspend' : 'Activate'}
@@ -220,11 +281,19 @@ const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({
     <div className="space-y-6">
       {renderTabs()}
       {renderContent()}
-      {isModalOpen && editingInstitution && (
+      {isEditModalOpen && editingInstitution && (
         <EditInstitutionModal
           institution={editingInstitution}
-          onClose={() => setIsModalOpen(false)}
+          onClose={() => setIsEditModalOpen(false)}
           onSave={handleModalSave}
+        />
+      )}
+      {managingUsersFor && (
+        <UserManagementModal
+          institution={managingUsersFor}
+          users={users.filter(u => u.institutionId === managingUsersFor.id)}
+          onClose={() => setManagingUsersFor(null)}
+          onUpdateCredentials={onUpdateCredentials}
         />
       )}
     </div>

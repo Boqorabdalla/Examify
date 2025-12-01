@@ -25,7 +25,7 @@ const InstitutionAnalytics: React.FC<InstitutionAnalyticsProps> = ({ exams, user
                 return acc;
             }, {} as Record<string, number>);
 
-            const sortedTeachers = Object.entries(examsPerTeacher).sort((a, b) => b[1] - a[1]);
+            const sortedTeachers = Object.entries(examsPerTeacher).sort((a, b) => (b[1] as number) - (a[1] as number));
 
             Chart.defaults.color = '#94a3b8'; // slate-400
             Chart.defaults.borderColor = '#334155'; // slate-700

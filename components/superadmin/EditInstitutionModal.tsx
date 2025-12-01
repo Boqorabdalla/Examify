@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Institution } from '../../types';
 
@@ -15,9 +16,10 @@ const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution
   const [staffName, setStaffName] = useState(institution.staffName || '');
   const [phone, setPhone] = useState(institution.phone || '');
   const [location, setLocation] = useState(institution.location || '');
+  const [handbookEnabled, setHandbookEnabled] = useState(institution.handbookGenerationEnabled || false);
 
   const handleSave = () => {
-    onSave({ name, logo, type, staffName, phone, location });
+    onSave({ name, logo, type, staffName, phone, location, handbookGenerationEnabled: handbookEnabled });
   };
 
   return (
@@ -49,6 +51,17 @@ const EditInstitutionModal: React.FC<EditInstitutionModalProps> = ({ institution
              <div>
               <label className="block text-sm font-medium text-slate-300">Logo URL (Optional)</label>
               <input type="text" value={logo} onChange={(e) => setLogo(e.target.value)} className="mt-1 block w-full border border-slate-600 bg-slate-700 rounded-md shadow-sm py-2 px-3 text-amber-50 focus:ring-amber-500 focus:border-amber-500 sm:text-sm" placeholder="https://example.com/logo.png" />
+            </div>
+            <div className="border-t border-slate-700 pt-4">
+                <label className="flex items-center">
+                    <input
+                        type="checkbox"
+                        checked={handbookEnabled}
+                        onChange={(e) => setHandbookEnabled(e.target.checked)}
+                        className="h-4 w-4 text-amber-600 border-slate-500 rounded focus:ring-amber-500 bg-slate-700"
+                    />
+                    <span className="ml-2 text-sm text-slate-300">Enable Handbook Generation Feature</span>
+                </label>
             </div>
           </div>
           <div className="items-center px-4 py-3 space-x-2">
