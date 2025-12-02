@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { Exam, ExamParameters, QuestionType } from "../types";
 
@@ -74,13 +73,8 @@ const buildPrompt = (material: string, params: ExamParameters): string => {
 
 
 export const generateExam = async (material: string, params: ExamParameters, institutionId: string, creatorId: string, creatorUsername: string): Promise<Exam> => {
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-        throw new Error("Gemini API Key is missing. If you are on Netlify, please add 'VITE_API_KEY' to your Environment Variables.");
-    }
-    
-    // Initialize AI client lazily to avoid crashes on app load if environment is misconfigured
-    const ai = new GoogleGenAI({ apiKey });
+    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const prompt = buildPrompt(material, params);
 
     try {

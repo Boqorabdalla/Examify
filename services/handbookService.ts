@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 import { CourseOutline, ChapterDetails } from "../types";
 
@@ -34,15 +33,8 @@ export const generateHandbook = async (
     onProgress: (current: number, total: number) => void
 ): Promise<void> => {
     
-    const apiKey = process.env.API_KEY;
-    if (!apiKey) {
-        // We report this as a chunk so the UI shows the error gracefully instead of crashing
-        onChunk("# Error: Missing API Key\n\nIf you are on Netlify, please ensure you have set the environment variable **`VITE_API_KEY`** in your Site Settings.");
-        throw new Error("Gemini API Key is missing. Please check your environment configuration.");
-    }
-
-    // Initialize AI client lazily
-    const ai = new GoogleGenAI({ apiKey });
+    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     // Start with the main title
     const titleChunk = `# ${outline.courseTitle}\n\n`;
@@ -58,7 +50,7 @@ export const generateHandbook = async (
 
         try {
             const response = await ai.models.generateContent({
-                model: "gemini-2.5-pro",
+                model: "gemini-3-pro-preview",
                 contents: prompt,
                 config: {
                     temperature: 0.6,
