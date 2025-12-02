@@ -1,6 +1,25 @@
 import { GoogleGenAI } from "@google/genai";
 import { CourseOutline, ChapterDetails } from "../types";
 
+// Helper to safely get the API Key in both Node and Vite/Netlify environments
+const getApiKey = (): string => {
+    // 1. Check process.env (Standard Node/Webpack)
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return process.env.API_KEY;
+    }
+    // 2. Check import.meta.env (Vite/Netlify)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_API_KEY;
+    }
+    // 3. Check global window polyfill (Fallback)
+    if (typeof window !== 'undefined' && (window as any).process?.env?.API_KEY) {
+        return (window as any).process.env.API_KEY;
+    }
+    return '';
+};
+
 const buildChapterPrompt = (material: string, courseTitle: string, chapter: ChapterDetails): string => {
     return `
     You are an expert academic writer and curriculum developer. Your task is to write the content for a single chapter titled "${chapter.name}" for the course "${courseTitle}".
@@ -33,8 +52,12 @@ export const generateHandbook = async (
     onProgress: (current: number, total: number) => void
 ): Promise<void> => {
     
-    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        throw new Error("Gemini API Key is missing. Please add 'VITE_API_KEY' to your Netlify Environment Variables.");
+    }
+    
+    const ai = new GoogleGenAI({ apiKey });
 
     // Start with the main title
     const titleChunk = `# ${outline.courseTitle}\n\n`;

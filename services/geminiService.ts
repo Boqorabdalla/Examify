@@ -1,6 +1,25 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Exam, ExamParameters, QuestionType } from "../types";
 
+// Helper to safely get the API Key in both Node and Vite/Netlify environments
+const getApiKey = (): string => {
+    // 1. Check process.env (Standard Node/Webpack)
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return process.env.API_KEY;
+    }
+    // 2. Check import.meta.env (Vite/Netlify)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_API_KEY;
+    }
+    // 3. Check global window polyfill (Fallback)
+    if (typeof window !== 'undefined' && (window as any).process?.env?.API_KEY) {
+        return (window as any).process.env.API_KEY;
+    }
+    return '';
+};
+
 // Updated Schema: Removed 'answerBoolean' and consolidated into a single 'answer' string field.
 const responseSchema = {
     type: Type.OBJECT,
@@ -73,8 +92,12 @@ const buildPrompt = (material: string, params: ExamParameters): string => {
 
 
 export const generateExam = async (material: string, params: ExamParameters, institutionId: string, creatorId: string, creatorUsername: string): Promise<Exam> => {
-    // The API key must be obtained exclusively from the environment variable process.env.API_KEY.
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const apiKey = getApiKey();
+    if (!apiKey) {
+        throw new Error("Gemini API Key is missing. Please add 'VITE_API_KEY' to your Netlify Environment Variables.");
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = buildPrompt(material, params);
 
     try {
