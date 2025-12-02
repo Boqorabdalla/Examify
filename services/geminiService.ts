@@ -76,7 +76,7 @@ const buildPrompt = (material: string, params: ExamParameters): string => {
 export const generateExam = async (material: string, params: ExamParameters, institutionId: string, creatorId: string, creatorUsername: string): Promise<Exam> => {
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
-        throw new Error("Gemini API Key is missing. Please check your environment configuration.");
+        throw new Error("Gemini API Key is missing. If you are on Netlify, please add 'VITE_API_KEY' to your Environment Variables.");
     }
     
     // Initialize AI client lazily to avoid crashes on app load if environment is misconfigured

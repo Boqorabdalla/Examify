@@ -37,7 +37,7 @@ export const generateHandbook = async (
     const apiKey = process.env.API_KEY;
     if (!apiKey) {
         // We report this as a chunk so the UI shows the error gracefully instead of crashing
-        onChunk("# Error: Missing API Key\n\nPlease check your environment configuration.");
+        onChunk("# Error: Missing API Key\n\nIf you are on Netlify, please ensure you have set the environment variable **`VITE_API_KEY`** in your Site Settings.");
         throw new Error("Gemini API Key is missing. Please check your environment configuration.");
     }
 
