@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Exam, ExamParameters, Institution, User, Announcement, CourseOutline } from '../../types';
 import ExamSetup from '../ExamSetup';
@@ -47,6 +46,8 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
   const [examIsLoading, setExamIsLoading] = useState<boolean>(false);
   const [examError, setExamError] = useState<string | null>(null);
   const [generatorStep, setGeneratorStep] = useState<'setup' | 'preview'>('setup');
+  // New state to hold source material for the "Magic Wand" feature
+  const [currentMaterial, setCurrentMaterial] = useState<string>('');
 
   // Handbook Generator State
   const [handbookContent, setHandbookContent] = useState<string | null>(null);
@@ -69,6 +70,8 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
     setExamIsLoading(true);
     setExamError(null);
     setCurrentExam(null);
+    setCurrentMaterial(material); // Store material for regeneration context
+
     try {
       const generatedExam = await generateExam(material, params, institution.id, currentUser.id, currentUser.username);
       setCurrentExam(generatedExam);
@@ -85,6 +88,7 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
     setGeneratorStep('setup');
     setCurrentExam(null);
     setExamError(null);
+    setCurrentMaterial('');
   };
   
   const handleUpdateExam = (updatedExam: Exam) => {
@@ -101,6 +105,9 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
     setCurrentExam(exam);
     setGeneratorStep('preview');
     setActiveView('exam_generator');
+    // Note: Loaded exams won't have 'currentMaterial' context for regeneration unless we save material to DB too.
+    // For now, we leave it empty, which means regeneration might be less context-aware or disabled.
+    setCurrentMaterial(''); 
   };
 
   // --- Handbook Generation Handlers ---
@@ -147,6 +154,7 @@ const InstitutionPortal: React.FC<InstitutionPortalProps> = ({
                               onBack={handleBackToExamSetup} 
                               onUpdateExam={handleUpdateExam}
                               onSaveExam={handleSaveAndExit}
+                              sourceMaterial={currentMaterial}
                            />;
       case 'handbook_generator':
           if (!institution.handbookGenerationEnabled) return null;

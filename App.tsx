@@ -496,9 +496,9 @@ create table if not exists public.announcements (
   institution_ids text[]
 );
 
--- 5. Create Default Super Admin (Login: superadmin / password)
+-- 5. Create Default Super Admin (Login: superadmin_new / newpass123)
 insert into public.users (id, username, password, role)
-values ('user_super', 'superadmin', 'password', 'SUPER_ADMIN')
+values ('user_super', 'superadmin_new', 'newpass123', 'SUPER_ADMIN')
 on conflict (id) do nothing;
 `}
                 </pre>
