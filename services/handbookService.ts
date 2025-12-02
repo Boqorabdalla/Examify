@@ -2,8 +2,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { CourseOutline, ChapterDetails } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-
 const buildChapterPrompt = (material: string, courseTitle: string, chapter: ChapterDetails): string => {
     return `
     You are an expert academic writer and curriculum developer. Your task is to write the content for a single chapter titled "${chapter.name}" for the course "${courseTitle}".
@@ -36,6 +34,16 @@ export const generateHandbook = async (
     onProgress: (current: number, total: number) => void
 ): Promise<void> => {
     
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        // We report this as a chunk so the UI shows the error gracefully instead of crashing
+        onChunk("# Error: Missing API Key\n\nPlease check your environment configuration.");
+        throw new Error("Gemini API Key is missing. Please check your environment configuration.");
+    }
+
+    // Initialize AI client lazily
+    const ai = new GoogleGenAI({ apiKey });
+
     // Start with the main title
     const titleChunk = `# ${outline.courseTitle}\n\n`;
     onChunk(titleChunk);

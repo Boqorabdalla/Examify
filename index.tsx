@@ -3,6 +3,12 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 
+// Polyfill for process.env in browser environments (e.g. Netlify)
+// This prevents "ReferenceError: process is not defined" crashes.
+if (typeof (window as any).process === 'undefined') {
+  (window as any).process = { env: {} };
+}
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");

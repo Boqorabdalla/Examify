@@ -2,8 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Exam, ExamParameters, QuestionType } from "../types";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
-
 // Updated Schema: Removed 'answerBoolean' and consolidated into a single 'answer' string field.
 const responseSchema = {
     type: Type.OBJECT,
@@ -76,6 +74,13 @@ const buildPrompt = (material: string, params: ExamParameters): string => {
 
 
 export const generateExam = async (material: string, params: ExamParameters, institutionId: string, creatorId: string, creatorUsername: string): Promise<Exam> => {
+    const apiKey = process.env.API_KEY;
+    if (!apiKey) {
+        throw new Error("Gemini API Key is missing. Please check your environment configuration.");
+    }
+    
+    // Initialize AI client lazily to avoid crashes on app load if environment is misconfigured
+    const ai = new GoogleGenAI({ apiKey });
     const prompt = buildPrompt(material, params);
 
     try {
