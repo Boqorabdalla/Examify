@@ -7,13 +7,13 @@
       "src": "https://raw.githubusercontent.com/google/material-design-icons/master/src/content/content_paste/materialicons/24px.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
       "src": "https://raw.githubusercontent.com/google/material-design-icons/master/src/content/content_paste/materialicons/24px.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "maskable"
     }
   ],
   "start_url": "/",
@@ -21,5 +21,5 @@
   "theme_color": "#f59e0b",
   "display": "standalone",
   "scope": "/",
-  "description": "AI-powered exam and handbook generation for educators."
+  "description": "Professional AI-powered exam and handbook generation suite."
 }
