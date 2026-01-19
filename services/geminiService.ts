@@ -1,19 +1,17 @@
+
 import { GoogleGenAI, Type, Schema } from "@google/genai";
 import { Exam, ExamParameters, Question, QuestionType } from "../types";
 
 // Helper to safely get the API Key in both Node and Vite/Netlify environments
 const getApiKey = (): string => {
-    // 1. Check process.env (Standard Node/Webpack)
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
         return process.env.API_KEY;
     }
-    // 2. Check import.meta.env (Vite/Netlify)
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
         // @ts-ignore
         return import.meta.env.VITE_API_KEY;
     }
-    // 3. Check global window polyfill (Fallback)
     if (typeof window !== 'undefined' && (window as any).process?.env?.API_KEY) {
         return (window as any).process.env.API_KEY;
     }
@@ -24,10 +22,10 @@ const questionProperties = {
     type: { type: Type.STRING, enum: Object.values(QuestionType) },
     question: { type: Type.STRING },
     options: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
-    answer: { type: Type.STRING, nullable: true }, // Unified answer field for all question types
-    premises: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true }, // For Matching
-    responses: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true }, // For Matching
-    answers: { // For Matching
+    answer: { type: Type.STRING, nullable: true },
+    premises: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
+    responses: { type: Type.ARRAY, items: { type: Type.STRING }, nullable: true },
+    answers: {
         type: Type.ARRAY,
         items: {
             type: Type.OBJECT,
@@ -41,7 +39,6 @@ const questionProperties = {
     },
 };
 
-// Updated Schema: Removed 'answerBoolean' and consolidated into a single 'answer' string field.
 const responseSchema = {
     type: Type.OBJECT,
     properties: {
@@ -87,18 +84,17 @@ const buildPrompt = (material: string, params: ExamParameters): string => {
     ${params.duration ? `- Exam Duration (minutes): ${params.duration}` : ''}
     - Question Distribution: Generate exactly ${questionRequests}.
 
-    **Instructions:**
-    1.  Ensure all questions are directly derived from the provided course material.
-    2.  **Mathematics & Sciences:** For ANY mathematical equations, formulas, or scientific notation, you MUST use standard LaTeX syntax.
-        - Enclose inline math in single dollar signs: $E=mc^2$
-        - Enclose block math in double dollar signs: $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$
-        - Do NOT use '\\(' or '\\[' delimiters.
-    3.  For Multiple Choice (MCQ) questions, provide 4 plausible options with one clear correct answer. Populate the 'options' and 'answer' fields.
-    4.  For True/False questions, create a statement and provide the answer as a string ("True" or "False") in the 'answer' field.
-    5.  For Matching questions, provide exactly 5 premises and 5 corresponding responses. The lists must be of equal length (5 items each). Then provide the correct pairings in the 'answers' field.
-    6.  For Short Answer questions, ask for a concise response and provide a model answer in the 'answer' field.
-    7.  For Essay questions, pose a question that requires a detailed response and provide a summary of key points or a model answer in the 'answer' field.
-    8.  Adhere strictly to the JSON schema provided for the response. Do not add any extra fields. The output must be a single, valid JSON object.
+    **CRITICAL INSTRUCTIONS:**
+    1.  **LANGUAGE MATCHING:** You MUST detect the language of the provided "Course Material". 
+        - If the material is in Arabic, the entire exam (questions, options, answers) MUST be in Arabic.
+        - If the material is in English, the entire exam MUST be in English.
+        - Do NOT mix languages unless the material itself is a language-learning text.
+    2.  Ensure all questions are directly derived from the provided material.
+    3.  **Mathematics & Sciences:** For ANY mathematical equations, formulas, or scientific notation, you MUST use standard LaTeX syntax: $E=mc^2$ or $$x = \\frac{-b \\pm \\sqrt{b^2-4ac}}{2a}$$.
+    4.  For Multiple Choice (MCQ) questions, provide 4 plausible options with one clear correct answer.
+    5.  For True/False questions, provide the answer as a string in the language of the material (e.g., "True" or "False" in English; "صح" or "خطأ" in Arabic) in the 'answer' field.
+    6.  For Matching questions, provide exactly 5 premises and 5 corresponding responses.
+    7.  Adhere strictly to the JSON schema.
     `;
 };
 
@@ -106,7 +102,7 @@ const buildPrompt = (material: string, params: ExamParameters): string => {
 export const generateExam = async (material: string, params: ExamParameters, institutionId: string, creatorId: string, creatorUsername: string): Promise<Exam> => {
     const apiKey = getApiKey();
     if (!apiKey) {
-        throw new Error("Gemini API Key is missing. Please add 'VITE_API_KEY' to your Netlify Environment Variables.");
+        throw new Error("Gemini API Key is missing.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -126,7 +122,6 @@ export const generateExam = async (material: string, params: ExamParameters, ins
         const jsonText = response.text.trim();
         const rawExam = JSON.parse(jsonText);
 
-        // Sanitize and structure the data to prevent runtime errors from malformed API responses.
         const sanitizedExam: Exam = {
             id: `exam_${Date.now()}`,
             institutionId,
@@ -150,9 +145,12 @@ export const generateExam = async (material: string, params: ExamParameters, ins
                             answer: String(q.answer || ''),
                         };
                     case QuestionType.TRUE_FALSE:
+                        // Handle Arabic and English True values
+                        const val = String(q.answer || '').toLowerCase();
+                        const isTrue = val === 'true' || val === 'صح' || val === 'صحيح' || val === 'صواب' || val === 'yes';
                         return {
                             ...baseQuestion,
-                            answer: q.answer?.toLowerCase() === 'true',
+                            answer: isTrue,
                         };
                     case QuestionType.MATCHING:
                         return {
@@ -168,12 +166,11 @@ export const generateExam = async (material: string, params: ExamParameters, ins
                             answer: q.answer || '',
                         };
                     default:
-                        // This will render gracefully in the UI instead of crashing
                         return {
                             ...baseQuestion,
                             type: QuestionType.ESSAY,
-                            question: `Unsupported Question Type Received: '${q.type}'. Original text: ${q.question}`,
-                            answer: `Raw data: ${JSON.stringify(q)}`,
+                            question: `Unsupported Type: ${q.type}`,
+                            answer: '',
                         };
                 }
             })
@@ -181,44 +178,31 @@ export const generateExam = async (material: string, params: ExamParameters, ins
 
         return sanitizedExam;
     } catch (error) {
-        console.error("Error calling Gemini API or parsing response:", error);
-        if (error instanceof Error) {
-            throw new Error(`Failed to generate exam: ${error.message}`);
-        }
-        throw new Error("An unknown error occurred while generating the exam.");
+        console.error("Error generating exam:", error);
+        throw new Error(error instanceof Error ? error.message : "Generation failed.");
     }
 };
 
 export const regenerateQuestion = async (material: string, currentQuestion: Question, instruction: string): Promise<Question> => {
     const apiKey = getApiKey();
-    if (!apiKey) {
-        throw new Error("Gemini API Key is missing.");
-    }
+    if (!apiKey) throw new Error("Gemini API Key is missing.");
 
     const ai = new GoogleGenAI({ apiKey });
 
     const prompt = `
-    You are an expert exam creator. Your task is to modify a specific exam question based on the user's instructions and the original course material.
-
-    **Original Course Material:**
-    ---
-    ${material.substring(0, 5000)} ${material.length > 5000 ? '...(truncated)' : ''}
-    ---
+    Modify this exam question based on the instruction.
+    **LANGUAGE RULE:** The rewritten question MUST be in the same language as the original question and the provided material.
+    
+    **Material Context:** ${material.substring(0, 3000)}
 
     **Current Question:**
     Type: ${currentQuestion.type}
     Question: ${currentQuestion.question}
-    ${currentQuestion.type === QuestionType.MCQ ? `Options: ${JSON.stringify((currentQuestion as any).options)}` : ''}
     Answer: ${JSON.stringify((currentQuestion as any).answer)}
 
-    **User Instruction:**
-    "${instruction}"
-
-    **Task:**
-    Rewrite the question (and options/answer if necessary) to follow the user's instruction.
-    Maintain the same Question Type: ${currentQuestion.type}.
-    Use LaTeX for any math: $E=mc^2$.
-    Return a single JSON object.
+    **User Instruction:** "${instruction}"
+    
+    Return a single JSON object matching the question schema.
     `;
 
     try {
@@ -235,65 +219,30 @@ export const regenerateQuestion = async (material: string, currentQuestion: Ques
         const jsonText = response.text.trim();
         const rawQuestion = JSON.parse(jsonText);
 
-        // Sanitize output
         const baseQuestion = {
-            id: currentQuestion.id, // Keep the original ID
-            question: rawQuestion.question || 'Error: Question text was not generated.',
+            id: currentQuestion.id,
+            question: rawQuestion.question || 'Error',
             type: currentQuestion.type,
         };
 
-        let finalQuestion: Question;
-
-         switch (currentQuestion.type) {
+        switch (currentQuestion.type) {
             case QuestionType.MCQ:
-                finalQuestion = {
-                    ...baseQuestion,
-                    type: QuestionType.MCQ,
-                    options: rawQuestion.options || [],
-                    answer: String(rawQuestion.answer || ''),
-                };
-                break;
+                return { ...baseQuestion, type: QuestionType.MCQ, options: rawQuestion.options || [], answer: String(rawQuestion.answer || '') };
             case QuestionType.TRUE_FALSE:
-                finalQuestion = {
-                    ...baseQuestion,
-                    type: QuestionType.TRUE_FALSE,
-                    answer: String(rawQuestion.answer).toLowerCase() === 'true',
-                };
-                break;
+                const val = String(rawQuestion.answer || '').toLowerCase();
+                const isTrue = val === 'true' || val === 'صح' || val === 'صحيح' || val === 'صواب';
+                return { ...baseQuestion, type: QuestionType.TRUE_FALSE, answer: isTrue };
             case QuestionType.MATCHING:
-                finalQuestion = {
-                    ...baseQuestion,
-                    type: QuestionType.MATCHING,
-                    premises: rawQuestion.premises || [],
-                    responses: rawQuestion.responses || [],
-                    answers: rawQuestion.answers || [],
-                };
-                break;
+                return { ...baseQuestion, type: QuestionType.MATCHING, premises: rawQuestion.premises || [], responses: rawQuestion.responses || [], answers: rawQuestion.answers || [] };
             case QuestionType.SHORT_ANSWER:
-                finalQuestion = {
-                    ...baseQuestion,
-                    type: QuestionType.SHORT_ANSWER,
-                    answer: rawQuestion.answer || '',
-                };
-                break;
+                return { ...baseQuestion, type: QuestionType.SHORT_ANSWER, answer: rawQuestion.answer || '' };
             case QuestionType.ESSAY:
-                finalQuestion = {
-                    ...baseQuestion,
-                    type: QuestionType.ESSAY,
-                    answer: rawQuestion.answer || '',
-                };
-                break;
+                return { ...baseQuestion, type: QuestionType.ESSAY, answer: rawQuestion.answer || '' };
             default:
                 throw new Error("Unsupported type");
         }
-        
-        return finalQuestion;
-
     } catch (error) {
         console.error("Error regenerating question:", error);
-         if (error instanceof Error) {
-            throw new Error(`Failed to regenerate question: ${error.message}`);
-        }
-        throw new Error("An unknown error occurred.");
+        throw new Error("Regeneration failed.");
     }
 };

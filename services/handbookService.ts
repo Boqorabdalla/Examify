@@ -1,19 +1,16 @@
+
 import { GoogleGenAI } from "@google/genai";
 import { CourseOutline, ChapterDetails } from "../types";
 
-// Helper to safely get the API Key in both Node and Vite/Netlify environments
 const getApiKey = (): string => {
-    // 1. Check process.env (Standard Node/Webpack)
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
         return process.env.API_KEY;
     }
-    // 2. Check import.meta.env (Vite/Netlify)
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
         // @ts-ignore
         return import.meta.env.VITE_API_KEY;
     }
-    // 3. Check global window polyfill (Fallback)
     if (typeof window !== 'undefined' && (window as any).process?.env?.API_KEY) {
         return (window as any).process.env.API_KEY;
     }
@@ -22,8 +19,12 @@ const getApiKey = (): string => {
 
 const buildChapterPrompt = (material: string, courseTitle: string, chapter: ChapterDetails): string => {
     return `
-    You are an expert academic writer and curriculum developer. Your task is to write the content for a single chapter titled "${chapter.name}" for the course "${courseTitle}".
-    You MUST ONLY use the information provided in the "Reference Material" section below as the source of truth. Do not invent facts, concepts, or examples. All content must be directly derived from the provided text.
+    You are an expert academic writer. Write the content for chapter "${chapter.name}" for the course "${courseTitle}".
+    
+    **CRITICAL LANGUAGE RULE:** You MUST detect the language of the "Reference Material" section below. 
+    - If the material is in Arabic, write this entire chapter in Arabic. Use Arabic headers and terminology.
+    - If the material is in English, write this entire chapter in English.
+    - Match the tone and academic level of the source material.
 
     **Reference Material:**
     ---
@@ -35,12 +36,9 @@ const buildChapterPrompt = (material: string, courseTitle: string, chapter: Chap
     - Key Sub-Topics to Cover: ${chapter.subChapters.split(/[\n,]/).map(s => s.trim()).filter(s => s).join(', ')}
 
     **Instructions:**
-    1.  Write a substantial, in-depth exploration of the chapter's topics. Be extremely detailed and comprehensive.
-    2.  Elaborate on key concepts, provide detailed explanations, and use examples from the reference material where appropriate. Aim for a verbose and thorough output that would be suitable for a university-level handbook.
-    3.  The goal is to generate approximately ${chapter.pages} pages worth of content for this chapter.
-    4.  Do not write any other chapters or introductory/concluding remarks for the entire book. Focus solely on this chapter's content.
-    5.  Format the output using Markdown. Start with the chapter title as a Level 2 heading (e.g., "## ${chapter.name}"). Use Level 3 headings for sub-topics.
-    6.  Ensure the generated content strictly adheres to the provided reference material.
+    1. Write a substantial, in-depth exploration of the topics. Use examples directly from the reference material.
+    2. Format using Markdown. Start with the chapter title as a Level 2 heading (##). Use Level 3 headings for sub-topics.
+    3. Ensure content strictly adheres to the provided source material.
     `;
 };
 
@@ -53,13 +51,11 @@ export const generateHandbook = async (
 ): Promise<void> => {
     
     const apiKey = getApiKey();
-    if (!apiKey) {
-        throw new Error("Gemini API Key is missing. Please add 'VITE_API_KEY' to your Netlify Environment Variables.");
-    }
+    if (!apiKey) throw new Error("Gemini API Key is missing.");
     
     const ai = new GoogleGenAI({ apiKey });
 
-    // Start with the main title
+    // Start with the main title (The AI will handle the inner language)
     const titleChunk = `# ${outline.courseTitle}\n\n`;
     onChunk(titleChunk);
 
@@ -84,13 +80,8 @@ export const generateHandbook = async (
             onChunk(`\n\n${chapterContent}\n\n`);
 
         } catch (error) {
-            console.error(`Error generating chapter ${chapter.id} ("${chapter.name}"):`, error);
-            const errorChunk = `\n\n## Chapter ${chapter.id}: ${chapter.name}\n\n> *Error: Could not generate content for this chapter.*`;
-            onChunk(errorChunk);
-             if (error instanceof Error) {
-                throw new Error(`Failed to generate chapter "${chapter.name}": ${error.message}`);
-            }
-            throw new Error(`An unknown error occurred while generating chapter "${chapter.name}".`);
+            console.error(`Error generating chapter ${chapter.id}:`, error);
+            onChunk(`\n\n## Error: Could not generate content for chapter "${chapter.name}".`);
         }
     }
 };
