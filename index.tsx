@@ -9,6 +9,19 @@ if (typeof (window as any).process === 'undefined') {
   (window as any).process = { env: {} };
 }
 
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((registration) => {
+        console.log('SW registered: ', registration);
+      })
+      .catch((registrationError) => {
+        console.log('SW registration failed: ', registrationError);
+      });
+  });
+}
+
 // Compatibility Layer for Vite/Netlify:
 // Map 'VITE_API_KEY' (standard for Vite) to 'process.env.API_KEY' (standard for Node/SDKs)
 try {
